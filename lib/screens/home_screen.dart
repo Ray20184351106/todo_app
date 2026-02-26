@@ -78,7 +78,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
-      title: const Text('待办事项'),
+      title: _isSearching ? _buildSearchField() : const Text('待办事项'),
       bottom: const TabBar(
         tabs: [
           Tab(text: '全部'),
@@ -87,6 +87,18 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
       actions: [
+        if (_isSearching)
+          IconButton(
+            icon: const Icon(Icons.clear),
+            onPressed: _clearSearch,
+            tooltip: '清除',
+          )
+        else
+          IconButton(
+            icon: const Icon(Icons.search),
+            onPressed: _startSearch,
+            tooltip: '搜索',
+          ),
         IconButton(
           icon: const Icon(Icons.filter_list),
           onPressed: _showFilterDialog,
@@ -131,16 +143,19 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (context, taskProvider, child) {
         // Apply the filter to show relevant tasks
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (taskProvider.currentFilter != filter) {
+          if (taskProvider.currentFilter != filter && !_isSearching) {
             taskProvider.setFilter(filter);
           }
         });
 
-        final tasks = filter == TaskFilter.all
-            ? taskProvider.allTasks
-            : filter == TaskFilter.completed
-                ? taskProvider.allTasks.where((t) => t.isCompleted).toList()
-                : taskProvider.allTasks.where((t) => !t.isCompleted).toList();
+        // Show search results if searching
+        final tasks = _isSearching
+            ? taskProvider.tasks
+            : filter == TaskFilter.all
+                ? taskProvider.allTasks
+                : filter == TaskFilter.completed
+                    ? taskProvider.allTasks.where((t) => t.isCompleted).toList()
+                    : taskProvider.allTasks.where((t) => !t.isCompleted).toList();
 
         if (tasks.isEmpty) {
           return _buildEmptyState();
@@ -267,7 +282,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Text(
@@ -285,7 +300,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
-        color: Colors.blue.withOpacity(0.1),
+        color: Colors.blue.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Text(
@@ -308,7 +323,7 @@ class _HomeScreenState extends State<HomeScreen> {
             color: Colors.white,
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.1),
+                color: Colors.black.withValues(alpha: 0.1),
                 blurRadius: 4,
                 offset: const Offset(0, -2),
               ),
@@ -510,5 +525,35 @@ class _HomeScreenState extends State<HomeScreen> {
           },
         ) ??
         false;
+  }
+
+  // Search methods
+  void _startSearch() {
+    setState(() {
+      _isSearching = true;
+    });
+  }
+
+  void _clearSearch() {
+    setState(() {
+      _isSearching = false;
+      _searchController.clear();
+    });
+    context.read<TaskProvider>().loadTasks();
+  }
+
+  Widget _buildSearchField() {
+    return TextField(
+      controller: _searchController,
+      autofocus: true,
+      decoration: const InputDecoration(
+        hintText: '搜索任务...',
+        border: InputBorder.none,
+      ),
+      style: const TextStyle(fontSize: 18),
+      onChanged: (query) {
+        context.read<TaskProvider>().searchTasks(query);
+      },
+    );
   }
 }
