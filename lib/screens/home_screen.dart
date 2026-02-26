@@ -15,6 +15,8 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _searchController = TextEditingController();
   bool _isSearching = false;
+  final Set<int> _selectedTaskIds = {};
+  bool _isMultiSelectMode = false;
 
   @override
   void initState() {
@@ -66,11 +68,13 @@ class _HomeScreenState extends State<HomeScreen> {
             );
           },
         ),
-        floatingActionButton: FloatingActionButton(
-          onPressed: () => _navigateToAddTask(context),
-          tooltip: '添加任务',
-          child: const Icon(Icons.add),
-        ),
+        floatingActionButton: _isMultiSelectMode
+            ? null
+            : FloatingActionButton(
+                onPressed: () => _navigateToAddTask(context),
+                tooltip: '添加任务',
+                child: const Icon(Icons.add),
+              ),
         bottomNavigationBar: _buildBottomNavigationBar(),
       ),
     );
@@ -78,7 +82,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
-      title: _isSearching ? _buildSearchField() : const Text('待办事项'),
+      title: _isMultiSelectMode
+          ? Text('${_selectedTaskIds.length} 个已选')
+          : _isSearching
+              ? _buildSearchField()
+              : const Text('待办事项'),
       bottom: const TabBar(
         tabs: [
           Tab(text: '全部'),
@@ -87,23 +95,31 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
       actions: [
-        if (_isSearching)
+        if (_isMultiSelectMode)
           IconButton(
-            icon: const Icon(Icons.clear),
-            onPressed: _clearSearch,
-            tooltip: '清除',
+            icon: const Icon(Icons.close),
+            onPressed: () => _toggleMultiSelectMode(false),
+            tooltip: '取消选择',
           )
-        else
+        else ...[
+          if (_isSearching)
+            IconButton(
+              icon: const Icon(Icons.clear),
+              onPressed: _clearSearch,
+              tooltip: '清除',
+            )
+          else
+            IconButton(
+              icon: const Icon(Icons.search),
+              onPressed: _startSearch,
+              tooltip: '搜索',
+            ),
           IconButton(
-            icon: const Icon(Icons.search),
-            onPressed: _startSearch,
-            tooltip: '搜索',
+            icon: const Icon(Icons.filter_list),
+            onPressed: _showFilterDialog,
+            tooltip: '筛选',
           ),
-        IconButton(
-          icon: const Icon(Icons.filter_list),
-          onPressed: _showFilterDialog,
-          tooltip: '筛选',
-        ),
+        ],
       ],
     );
   }
@@ -161,18 +177,84 @@ class _HomeScreenState extends State<HomeScreen> {
           return _buildEmptyState();
         }
 
-        return ListView.builder(
-          itemCount: tasks.length,
-          itemBuilder: (context, index) {
-            final task = tasks[index];
-            return _buildTaskItem(task);
-          },
+        return Stack(
+          children: [
+            ListView.builder(
+              itemCount: tasks.length,
+              itemBuilder: (context, index) {
+                final task = tasks[index];
+                return _buildTaskItem(task);
+              },
+            ),
+            if (_isMultiSelectMode)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: _buildBatchActionBar(tasks),
+              ),
+          ],
         );
       },
     );
   }
 
   Widget _buildTaskItem(Task task) {
+    final isSelected = _selectedTaskIds.contains(task.id!);
+
+    if (_isMultiSelectMode) {
+      return ListTile(
+        leading: Checkbox(
+          value: isSelected,
+          onChanged: (bool? value) {
+            _toggleTaskSelection(task.id!);
+          },
+        ),
+        title: Text(
+          task.title,
+          style: TextStyle(
+            decoration: task.isCompleted ? TextDecoration.lineThrough : null,
+            color: task.isCompleted ? Colors.grey : null,
+          ),
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (task.description != null && task.description!.isNotEmpty)
+              Text(
+                task.description!,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            Row(
+              children: [
+                _buildPriorityChip(task.priority),
+                const SizedBox(width: 8),
+                _buildCategoryChip(task.category),
+                if (task.dueDate != null) ...[
+                  const SizedBox(width: 8),
+                  Icon(
+                    Icons.event,
+                    size: 16,
+                    color: Colors.grey[600],
+                  ),
+                  Text(
+                    ' ${task.dueDate!.month}/${task.dueDate!.day}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ],
+        ),
+        tileColor: isSelected ? Colors.blue.withValues(alpha: 0.1) : null,
+        onTap: () => _toggleTaskSelection(task.id!),
+      );
+    }
+
     return Dismissible(
       key: Key(task.id.toString()),
       background: Container(
@@ -261,6 +343,11 @@ class _HomeScreenState extends State<HomeScreen> {
           icon: const Icon(Icons.edit),
           onPressed: () => _navigateToEditTask(context, task),
         ),
+        onTap: () {},
+        onLongPress: () {
+          _toggleMultiSelectMode(true);
+          _toggleTaskSelection(task.id!);
+        },
       ),
     );
   }
@@ -555,5 +642,162 @@ class _HomeScreenState extends State<HomeScreen> {
         context.read<TaskProvider>().searchTasks(query);
       },
     );
+  }
+
+  // Selection mode methods
+  void _toggleMultiSelectMode(bool enabled) {
+    setState(() {
+      _isMultiSelectMode = enabled;
+      if (!enabled) {
+        _selectedTaskIds.clear();
+      }
+    });
+  }
+
+  void _toggleTaskSelection(int taskId) {
+    setState(() {
+      if (_selectedTaskIds.contains(taskId)) {
+        _selectedTaskIds.remove(taskId);
+        if (_selectedTaskIds.isEmpty) {
+          _isMultiSelectMode = false;
+        }
+      } else {
+        _selectedTaskIds.add(taskId);
+      }
+    });
+  }
+
+  void _selectAllTasks(List<Task> tasks) {
+    setState(() {
+      _selectedTaskIds.clear();
+      for (final task in tasks) {
+        _selectedTaskIds.add(task.id!);
+      }
+    });
+  }
+
+  void _deselectAllTasks() {
+    setState(() {
+      _selectedTaskIds.clear();
+      _isMultiSelectMode = false;
+    });
+  }
+
+  Widget _buildBatchActionBar(List<Task> tasks) {
+    final allSelected = _selectedTaskIds.length == tasks.length;
+    final hasSelection = _selectedTaskIds.isNotEmpty;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 4,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        child: Row(
+          children: [
+            // Select all checkbox
+            InkWell(
+              onTap: () {
+                if (allSelected) {
+                  _deselectAllTasks();
+                } else {
+                  _selectAllTasks(tasks);
+                }
+              },
+              child: Row(
+                children: [
+                  Checkbox(
+                    value: allSelected && tasks.isNotEmpty,
+                    onChanged: (bool? value) {
+                      if (allSelected) {
+                        _deselectAllTasks();
+                      } else {
+                        _selectAllTasks(tasks);
+                      }
+                    },
+                  ),
+                  const Text('全选'),
+                ],
+              ),
+            ),
+            const Spacer(),
+            // Batch delete button
+            IconButton(
+              icon: const Icon(Icons.delete),
+              onPressed: hasSelection ? () => _performBatchDelete(context) : null,
+              tooltip: '删除',
+              color: Colors.red,
+            ),
+            // Batch complete button
+            IconButton(
+              icon: const Icon(Icons.check_circle),
+              onPressed: hasSelection ? () => _performBatchComplete(context) : null,
+              tooltip: '标记完成',
+              color: Colors.green,
+            ),
+            // Batch incomplete button
+            IconButton(
+              icon: const Icon(Icons.radio_button_unchecked),
+              onPressed: hasSelection ? () => _performBatchIncomplete(context) : null,
+              tooltip: '标记未完成',
+              color: Colors.orange,
+            ),
+            // Close button
+            IconButton(
+              icon: const Icon(Icons.close),
+              onPressed: () => _toggleMultiSelectMode(false),
+              tooltip: '取消',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _performBatchDelete(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('确认删除'),
+          content: Text('确定要删除选中的 ${_selectedTaskIds.length} 个任务吗？'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('取消'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text(
+                '删除',
+                style: TextStyle(color: Colors.red),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed == true && context.mounted) {
+      await context.read<TaskProvider>().deleteSelectedTasks(_selectedTaskIds.toList());
+      _toggleMultiSelectMode(false);
+    }
+  }
+
+  Future<void> _performBatchComplete(BuildContext context) async {
+    await context.read<TaskProvider>().setCompletionStatus(_selectedTaskIds.toList(), true);
+    _toggleMultiSelectMode(false);
+  }
+
+  Future<void> _performBatchIncomplete(BuildContext context) async {
+    await context.read<TaskProvider>().setCompletionStatus(_selectedTaskIds.toList(), false);
+    _toggleMultiSelectMode(false);
   }
 }

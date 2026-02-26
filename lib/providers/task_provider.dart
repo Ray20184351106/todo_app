@@ -161,6 +161,40 @@ class TaskProvider extends ChangeNotifier {
     }
   }
 
+  // Batch delete specified tasks
+  Future<void> deleteSelectedTasks(List<int> taskIds) async {
+    _setLoading(true);
+    _clearError();
+
+    try {
+      for (final id in taskIds) {
+        await deleteTask(id);
+      }
+    } catch (e) {
+      _setError('Failed to delete tasks: ${e.toString()}');
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  // Batch set completion status
+  Future<void> setCompletionStatus(List<int> taskIds, bool isCompleted) async {
+    _setLoading(true);
+    _clearError();
+
+    try {
+      for (final id in taskIds) {
+        final task = _tasks.firstWhere((t) => t.id == id);
+        final updatedTask = task.copyWith(isCompleted: isCompleted);
+        await updateTask(updatedTask);
+      }
+    } catch (e) {
+      _setError('Failed to update tasks: ${e.toString()}');
+    } finally {
+      _setLoading(false);
+    }
+  }
+
   // Export data
   Future<String?> exportData() async {
     try {
