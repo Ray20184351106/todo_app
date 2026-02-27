@@ -419,6 +419,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 onToggleComplete: () => context.read<TaskProvider>().toggleTaskCompletion(task.userId!),
                 onEdit: () => _navigateToEditTask(context, task),
                 onDelete: () => _deleteTask(task),
+                onDirectDelete: () => context.read<TaskProvider>().deleteTask(task.userId!),
+                onLongPress: () => _enterMultiSelectMode(task.userId!),
               );
             },
           ),
@@ -756,6 +758,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     });
   }
 
+  void _enterMultiSelectMode(String taskId) {
+    setState(() {
+      _isMultiSelectMode = true;
+      _selectedTaskIds.add(taskId);
+    });
+  }
+
   void _toggleTaskSelection(String taskId) {
     setState(() {
       if (_selectedTaskIds.contains(taskId)) {
@@ -903,6 +912,8 @@ class AnimatedTaskItem extends StatefulWidget {
   final VoidCallback onToggleComplete;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
+  final VoidCallback onDirectDelete; // 直接删除，不需要再确认
+  final VoidCallback onLongPress;
 
   const AnimatedTaskItem({
     super.key,
@@ -914,6 +925,8 @@ class AnimatedTaskItem extends StatefulWidget {
     required this.onToggleComplete,
     required this.onEdit,
     required this.onDelete,
+    required this.onDirectDelete,
+    required this.onLongPress,
   });
 
   @override
@@ -960,134 +973,341 @@ class _AnimatedTaskItemState extends State<AnimatedTaskItem>
       opacity: _fadeAnimation,
       child: SlideTransition(
         position: _slideAnimation,
-        child: _buildTaskCard(),
+        child: widget.isMultiSelectMode
+            ? _buildTaskCard()
+            : Dismissible(
+                key: Key(widget.task.userId ?? widget.task.id.toString()),
+                // 左滑标记完成
+                background: Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  alignment: Alignment.centerLeft,
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  decoration: BoxDecoration(
+                    color: Colors.green,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Icon(
+                    Icons.check_circle,
+                    color: Colors.white,
+                    size: 32,
+                  ),
+                ),
+                // 右滑删除
+                secondaryBackground: Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  alignment: Alignment.centerRight,
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  decoration: BoxDecoration(
+                    color: Colors.red,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Icon(
+                    Icons.delete,
+                    color: Colors.white,
+                    size: 32,
+                  ),
+                ),
+                confirmDismiss: (direction) async {
+                  if (direction == DismissDirection.startToEnd) {
+                    // 左滑 -> 标记完成/未完成
+                    widget.onToggleComplete();
+                    return false; // 不移除卡片
+                  } else {
+                    // 右滑 -> 删除
+                    final confirmed = await _showDeleteConfirmation(context);
+                    if (confirmed == true) {
+                      // 用户确认后直接删除，返回 false 让 Dismissible 不处理移除
+                      // 实时流会自动更新列表
+                      widget.onDirectDelete();
+                    }
+                    return false; // 始终返回 false，让数据更新来移除卡片
+                  }
+                },
+                child: _buildTaskCard(),
+              ),
       ),
     );
   }
 
+  Future<bool> _showDeleteConfirmation(BuildContext context) async {
+    return await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('确认删除'),
+          content: Text('确定要删除任务 "${widget.task.title}" 吗？'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: FilledButton.styleFrom(backgroundColor: Colors.red),
+              child: const Text('删除'),
+            ),
+          ],
+        );
+      },
+    ) ?? false;
+  }
+
+  // 获取优先级颜色
+  Color _getPriorityColor() {
+    switch (widget.task.priority) {
+      case TaskPriority.high:
+        return Colors.red;
+      case TaskPriority.medium:
+        return Colors.orange;
+      case TaskPriority.low:
+        return Colors.green;
+    }
+  }
+
+  // 获取优先级背景色
+  Color _getPriorityBackgroundColor() {
+    if (widget.task.isCompleted) {
+      return Colors.grey.withValues(alpha: 0.12); // 已完成用灰色背景
+    }
+    final priorityColor = _getPriorityColor();
+    return priorityColor.withValues(alpha: 0.05);
+  }
+
   Widget _buildTaskCard() {
-    return Container(
+    final isCompleted = widget.task.isCompleted;
+    final priorityColor = _getPriorityColor();
+    final backgroundColor = _getPriorityBackgroundColor();
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: widget.isSelected ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.3) : Colors.white,
+        color: widget.isSelected
+            ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.3)
+            : backgroundColor,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
+            color: isCompleted
+                ? Colors.black.withValues(alpha: 0.02)
+                : priorityColor.withValues(alpha: 0.15),
+            blurRadius: isCompleted ? 5 : 12,
+            offset: const Offset(0, 3),
           ),
         ],
         border: widget.isSelected
             ? Border.all(color: Theme.of(context).colorScheme.primary, width: 2)
-            : null,
+            : isCompleted
+                ? Border.all(color: Colors.grey.withValues(alpha: 0.3), width: 1.5)
+                : Border.all(color: priorityColor.withValues(alpha: 0.2), width: 1),
       ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: widget.isMultiSelectMode ? widget.onSelect : null,
-          onLongPress: widget.isMultiSelectMode ? null : () {
-            // 进入多选模式
-          },
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                // 复选框或选择指示器
-                GestureDetector(
-                  onTap: widget.isMultiSelectMode ? widget.onSelect : widget.onToggleComplete,
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    width: 28,
-                    height: 28,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: widget.task.isCompleted
-                          ? Colors.green
-                          : widget.isSelected
-                              ? Theme.of(context).colorScheme.primary
-                              : Colors.transparent,
-                      border: Border.all(
-                        color: widget.task.isCompleted
-                            ? Colors.green
-                            : widget.isSelected
-                                ? Theme.of(context).colorScheme.primary
-                                : Colors.grey[400]!,
-                        width: 2,
-                      ),
-                    ),
-                    child: widget.task.isCompleted || widget.isSelected
-                        ? const Icon(Icons.check, color: Colors.white, size: 16)
-                        : null,
-                  ),
+      child: Stack(
+        children: [
+          // 左侧优先级指示条
+          Positioned(
+            left: 0,
+            top: 8,
+            bottom: 8,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              width: 4,
+              decoration: BoxDecoration(
+                color: isCompleted ? Colors.grey.withValues(alpha: 0.5) : priorityColor,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(4),
+                  bottomLeft: Radius.circular(4),
                 ),
-                const SizedBox(width: 16),
-                // 任务内容
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        widget.task.title,
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          decoration: widget.task.isCompleted ? TextDecoration.lineThrough : null,
-                          color: widget.task.isCompleted ? Colors.grey : null,
-                        ),
-                      ),
-                      if (widget.task.description != null && widget.task.description!.isNotEmpty) ...[
-                        const SizedBox(height: 4),
-                        Text(
-                          widget.task.description!,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                      ],
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          _buildPriorityChip(widget.task.priority),
-                          const SizedBox(width: 8),
-                          _buildCategoryChip(widget.task.category),
-                          if (widget.task.dueDate != null) ...[
-                            const SizedBox(width: 8),
-                            Icon(Icons.event, size: 14, color: Colors.grey[500]),
-                            const SizedBox(width: 4),
-                            Text(
-                              '${widget.task.dueDate!.month}/${widget.task.dueDate!.day}',
-                              style: TextStyle(fontSize: 12, color: Colors.grey[500]),
-                            ),
-                          ],
-                          if (widget.task.creatorName != null && widget.task.creatorName!.isNotEmpty) ...[
-                            const SizedBox(width: 8),
-                            Icon(Icons.person_outline, size: 14, color: Colors.grey[400]),
-                            const SizedBox(width: 4),
-                            Text(
-                              widget.task.creatorName!,
-                              style: TextStyle(fontSize: 11, color: Colors.grey[400]),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                // 编辑按钮
-                if (!widget.isMultiSelectMode)
-                  IconButton(
-                    icon: Icon(Icons.edit_outlined, color: Colors.grey[400]),
-                    onPressed: widget.onEdit,
-                  ),
-              ],
+              ),
             ),
           ),
-        ),
+          // 已完成任务的划掉效果
+          if (isCompleted)
+            Positioned.fill(
+              child: AnimatedOpacity(
+                duration: const Duration(milliseconds: 300),
+                opacity: isCompleted ? 1.0 : 0.0,
+                child: CustomPaint(
+                  painter: StrikethroughPainter(
+                    color: Colors.grey.withValues(alpha: 0.4),
+                    strokeWidth: 2,
+                  ),
+                ),
+              ),
+            ),
+          // 主要内容
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: widget.isMultiSelectMode ? widget.onSelect : null,
+              onLongPress: widget.isMultiSelectMode ? null : widget.onLongPress,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    const SizedBox(width: 8), // 为左侧指示条留出空间
+                    // 复选框或选择指示器
+                    GestureDetector(
+                      onTap: widget.isMultiSelectMode ? widget.onSelect : widget.onToggleComplete,
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 300),
+                        curve: Curves.easeInOut,
+                        width: 28,
+                        height: 28,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: widget.task.isCompleted
+                              ? Colors.grey[500]
+                              : widget.isSelected
+                                  ? Theme.of(context).colorScheme.primary
+                                  : Colors.transparent,
+                          border: Border.all(
+                            color: widget.task.isCompleted
+                                ? Colors.grey[500]!
+                                : widget.isSelected
+                                    ? Theme.of(context).colorScheme.primary
+                                    : priorityColor.withValues(alpha: 0.5),
+                            width: 2,
+                          ),
+                          boxShadow: widget.task.isCompleted
+                              ? [
+                                  BoxShadow(
+                                    color: Colors.grey.withValues(alpha: 0.3),
+                                    blurRadius: 8,
+                                    spreadRadius: 1,
+                                  ),
+                                ]
+                              : null,
+                        ),
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 200),
+                          child: widget.task.isCompleted || widget.isSelected
+                              ? const Icon(Icons.check, color: Colors.white, size: 16)
+                              : null,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    // 任务内容
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // 标题行（包含标题和已完成标签）
+                          Row(
+                            children: [
+                              Expanded(
+                                child: AnimatedDefaultTextStyle(
+                                  duration: const Duration(milliseconds: 300),
+                                  curve: Curves.easeInOut,
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    decoration: widget.task.isCompleted ? TextDecoration.lineThrough : null,
+                                    color: widget.task.isCompleted
+                                        ? Colors.grey[500]
+                                        : (widget.task.priority == TaskPriority.high && !widget.task.isCompleted
+                                            ? Colors.red[700]
+                                            : null),
+                                  ),
+                                  child: Text(
+                                    widget.task.title,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ),
+                              if (widget.task.isCompleted) ...[
+                                const SizedBox(width: 8),
+                                AnimatedContainer(
+                                  duration: const Duration(milliseconds: 300),
+                                  curve: Curves.easeOut,
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey.withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.check_circle, size: 12, color: Colors.grey[600]),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        '已完成',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: Colors.grey[700],
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                          // 描述
+                          if (widget.task.description != null && widget.task.description!.isNotEmpty) ...[
+                            const SizedBox(height: 6),
+                            AnimatedDefaultTextStyle(
+                              duration: const Duration(milliseconds: 300),
+                              curve: Curves.easeInOut,
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: widget.task.isCompleted ? Colors.grey[400] : Colors.grey[600],
+                                decoration: widget.task.isCompleted ? TextDecoration.lineThrough : null,
+                              ),
+                              child: Text(
+                                widget.task.description!,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                          const SizedBox(height: 10),
+                          // 标签行
+                          Row(
+                            children: [
+                              _buildPriorityChip(widget.task.priority),
+                              const SizedBox(width: 8),
+                              _buildCategoryChip(widget.task.category),
+                              if (widget.task.dueDate != null) ...[
+                                const SizedBox(width: 8),
+                                Icon(Icons.event, size: 14, color: Colors.grey[500]),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '${widget.task.dueDate!.month}/${widget.task.dueDate!.day}',
+                                  style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                                ),
+                              ],
+                              if (widget.task.creatorName != null && widget.task.creatorName!.isNotEmpty) ...[
+                                const SizedBox(width: 8),
+                                Icon(Icons.person_outline, size: 14, color: Colors.grey[400]),
+                                const SizedBox(width: 4),
+                                Text(
+                                  widget.task.creatorName!,
+                                  style: TextStyle(fontSize: 11, color: Colors.grey[400]),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    // 编辑按钮
+                    if (!widget.isMultiSelectMode)
+                      IconButton(
+                        icon: Icon(Icons.edit_outlined, color: priorityColor.withValues(alpha: 0.6)),
+                        onPressed: widget.onEdit,
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1139,5 +1359,38 @@ class _AnimatedTaskItemState extends State<AnimatedTaskItem>
         ),
       ),
     );
+  }
+}
+
+// 划掉效果绘制器
+class StrikethroughPainter extends CustomPainter {
+  final Color color;
+  final double strokeWidth;
+
+  StrikethroughPainter({
+    required this.color,
+    this.strokeWidth = 2,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = strokeWidth
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+
+    // 绘制斜线划掉效果
+    final path = Path();
+    // 从左上到右下
+    path.moveTo(size.width * 0.1, size.height * 0.3);
+    path.lineTo(size.width * 0.9, size.height * 0.7);
+
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant StrikethroughPainter oldDelegate) {
+    return oldDelegate.color != color || oldDelegate.strokeWidth != strokeWidth;
   }
 }

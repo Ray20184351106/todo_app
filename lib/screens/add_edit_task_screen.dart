@@ -212,7 +212,7 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
                   child: Text(
                     _selectedDueDate == null
                         ? '选择截止日期'
-                        : DateFormat('yyyy年MM月dd日 HH:mm').format(_selectedDueDate!),
+                        : DateFormat('yyyy年MM月dd日').format(_selectedDueDate!),
                     style: TextStyle(
                       color: _selectedDueDate == null ? Colors.grey : Colors.black,
                     ),
@@ -273,22 +273,13 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
     );
 
     if (pickedDate != null) {
-      final TimeOfDay? pickedTime = await showTimePicker(
-        context: context,
-        initialTime: TimeOfDay.now(),
-      );
-
-      if (pickedTime != null) {
-        setState(() {
-          _selectedDueDate = DateTime(
-            pickedDate.year,
-            pickedDate.month,
-            pickedDate.day,
-            pickedTime.hour,
-            pickedTime.minute,
-          );
-        });
-      }
+      setState(() {
+        _selectedDueDate = DateTime(
+          pickedDate.year,
+          pickedDate.month,
+          pickedDate.day,
+        );
+      });
     }
   }
 
