@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import '../constants/app_constants.dart';
 import '../models/task.dart';
@@ -12,7 +14,16 @@ class DatabaseService {
   static Database? _database;
   static final DatabaseService instance = DatabaseService._init();
 
-  DatabaseService._init();
+  DatabaseService._init() {
+    if (!kIsWeb) {
+      // 仅在非 Web 平台初始化 FFI
+      sqfliteFfiInit();
+      databaseFactory = databaseFactoryFfi;
+    } else {
+      // Web 平台使用默认的内存数据库
+      // 注意：Web 平台数据不会持久化
+    }
+  }
 
   Future<Database> get database async {
     if (_database != null) return _database!;
@@ -21,6 +32,17 @@ class DatabaseService {
   }
 
   Future<Database> _initDB(String fileName) async {
+    if (kIsWeb) {
+      // Web 平台使用内存数据库
+      return await openDatabase(
+        fileName,
+        version: AppConstants.databaseVersion,
+        onCreate: _createDB,
+        onUpgrade: _upgradeDB,
+      );
+    }
+
+    // 移动平台使用文件数据库
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, fileName);
 

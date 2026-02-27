@@ -15,6 +15,7 @@ class Task extends Equatable {
   final DateTime createdAt;
   final DateTime updatedAt;
   final String? userId;
+  final String? creatorName;
 
   const Task({
     this.id,
@@ -27,6 +28,7 @@ class Task extends Equatable {
     required this.createdAt,
     required this.updatedAt,
     this.userId,
+    this.creatorName,
   });
 
   Task copyWith({
@@ -40,6 +42,7 @@ class Task extends Equatable {
     DateTime? createdAt,
     DateTime? updatedAt,
     String? userId,
+    String? creatorName,
   }) {
     return Task(
       id: id ?? this.id,
@@ -52,6 +55,7 @@ class Task extends Equatable {
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       userId: userId ?? this.userId,
+      creatorName: creatorName ?? this.creatorName,
     );
   }
 
@@ -67,23 +71,50 @@ class Task extends Equatable {
       'created_at': createdAt.millisecondsSinceEpoch,
       'updated_at': updatedAt.millisecondsSinceEpoch,
       'user_id': userId,
+      'creator_name': creatorName,
     };
   }
 
   factory Task.fromMap(Map<String, dynamic> map) {
+    // 处理 is_completed - 可能是 bool 或 int
+    final isCompletedValue = map['is_completed'];
+    final bool isCompleted = isCompletedValue is bool
+        ? isCompletedValue
+        : (isCompletedValue == 1);
+
+    // 处理 due_date - 可能是 ISO 字符串或时间戳
+    final dynamic dueDateValue = map['due_date'];
+    DateTime? dueDate;
+    if (dueDateValue != null) {
+      if (dueDateValue is String) {
+        dueDate = DateTime.parse(dueDateValue);
+      } else if (dueDateValue is int) {
+        dueDate = DateTime.fromMillisecondsSinceEpoch(dueDateValue);
+      }
+    }
+
+    // 处理 created_at 和 updated_at - 可能是 ISO 字符串或时间戳
+    DateTime parseDateTime(dynamic value) {
+      if (value is String) {
+        return DateTime.parse(value);
+      } else if (value is int) {
+        return DateTime.fromMillisecondsSinceEpoch(value);
+      }
+      return DateTime.now();
+    }
+
     return Task(
       id: map['id'] as int?,
       title: map['title'] as String,
       description: map['description'] as String?,
-      isCompleted: map['is_completed'] == 1,
+      isCompleted: isCompleted,
       priority: TaskPriority.values[map['priority'] ?? 1],
       category: TaskCategory.values[map['category'] ?? 4],
-      dueDate: map['due_date'] != null
-          ? DateTime.fromMillisecondsSinceEpoch(map['due_date'] as int)
-          : null,
-      createdAt: DateTime.fromMillisecondsSinceEpoch(map['created_at'] as int),
-      updatedAt: DateTime.fromMillisecondsSinceEpoch(map['updated_at'] as int),
+      dueDate: dueDate,
+      createdAt: parseDateTime(map['created_at']),
+      updatedAt: parseDateTime(map['updated_at']),
       userId: map['user_id'] as String?,
+      creatorName: map['creator_name'] as String?,
     );
   }
 
@@ -120,6 +151,7 @@ class Task extends Equatable {
         createdAt,
         updatedAt,
         userId,
+        creatorName,
       ];
 
   static String getPriorityText(TaskPriority priority) {

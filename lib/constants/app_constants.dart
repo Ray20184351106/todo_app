@@ -9,4 +9,7 @@ class AppConstants {
   // Preferences
   static const String themeKey = 'theme_mode';
   static const String lastSyncKey = 'last_sync';
+
+  // User
+  static const String usernameKey = 'user_name';
 }

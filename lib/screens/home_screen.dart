@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../models/task.dart';
 import '../providers/task_provider.dart';
+import '../services/user_service.dart';
 import 'add_edit_task_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -12,115 +13,335 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   final TextEditingController _searchController = TextEditingController();
   bool _isSearching = false;
-  final Set<int> _selectedTaskIds = {};
+  final Set<String> _selectedTaskIds = {};
   bool _isMultiSelectMode = false;
+  String _username = '';
+
+  late TabController _tabController;
+  late AnimationController _fabAnimationController;
+  late Animation<double> _fabAnimation;
 
   @override
   void initState() {
     super.initState();
-    // Load tasks when screen initializes
+    _tabController = TabController(length: 3, vsync: this);
+    _tabController.addListener(_handleTabChange);
+
+    // FAB 动画
+    _fabAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+    _fabAnimation = CurvedAnimation(
+      parent: _fabAnimationController,
+      curve: Curves.easeOutBack,
+    );
+    _fabAnimationController.forward();
+
+    // 加载用户名
+    _loadUsername();
+
+    // 初始化时设置为"全部"过滤器
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<TaskProvider>().loadTasks();
+      context.read<TaskProvider>().setFilter(TaskFilter.all);
     });
+  }
+
+  Future<void> _loadUsername() async {
+    final userService = UserService();
+    final username = await userService.getUsername();
+    if (mounted) {
+      setState(() {
+        _username = username ?? '用户';
+      });
+    }
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _tabController.removeListener(_handleTabChange);
+    _tabController.dispose();
+    _fabAnimationController.dispose();
     super.dispose();
+  }
+
+  // 处理标签页切换
+  void _handleTabChange() {
+    if (!_tabController.indexIsChanging) return;
+
+    final index = _tabController.index;
+    final provider = context.read<TaskProvider>();
+
+    switch (index) {
+      case 0:
+        provider.setFilter(TaskFilter.all);
+        break;
+      case 1:
+        provider.setFilter(TaskFilter.pending);
+        break;
+      case 2:
+        provider.setFilter(TaskFilter.completed);
+        break;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 3,
-      child: Scaffold(
-        appBar: _buildAppBar(),
-        body: Consumer<TaskProvider>(
-          builder: (context, taskProvider, child) {
-            if (taskProvider.isLoading && taskProvider.tasks.isEmpty) {
-              return const Center(child: CircularProgressIndicator());
-            }
-
-            if (taskProvider.errorMessage.isNotEmpty) {
-              return Center(
-                child: Text(
-                  taskProvider.errorMessage,
-                  style: const TextStyle(color: Colors.red),
-                  textAlign: TextAlign.center,
-                ),
-              );
-            }
-
-            if (taskProvider.tasks.isEmpty) {
-              return _buildEmptyState();
-            }
-
-            return TabBarView(
-              children: [
-                _buildTabContent(TaskFilter.all),
-                _buildTabContent(TaskFilter.pending),
-                _buildTabContent(TaskFilter.completed),
-              ],
-            );
-          },
-        ),
-        floatingActionButton: _isMultiSelectMode
-            ? null
-            : FloatingActionButton(
+    return Scaffold(
+      body: Consumer<TaskProvider>(
+        builder: (context, taskProvider, child) {
+          return Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.3),
+                  Theme.of(context).scaffoldBackgroundColor,
+                ],
+              ),
+            ),
+            child: SafeArea(
+              child: Column(
+                children: [
+                  // 自定义头部（包含欢迎信息和用户名）
+                  _buildHeader(taskProvider),
+                  // TabBar
+                  _buildAnimatedTabBar(taskProvider),
+                  // TabBarView
+                  Expanded(
+                    child: TabBarView(
+                      controller: _tabController,
+                      children: [
+                        _buildTabContent(TaskFilter.all, taskProvider),
+                        _buildTabContent(TaskFilter.pending, taskProvider),
+                        _buildTabContent(TaskFilter.completed, taskProvider),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+      floatingActionButton: _isMultiSelectMode
+          ? null
+          : ScaleTransition(
+              scale: _fabAnimation,
+              child: FloatingActionButton.extended(
                 onPressed: () => _navigateToAddTask(context),
                 tooltip: '添加任务',
-                child: const Icon(Icons.add),
+                icon: const Icon(Icons.add),
+                label: const Text('添加任务'),
+                elevation: 4,
               ),
-        bottomNavigationBar: _buildBottomNavigationBar(),
+            ),
+      bottomNavigationBar: _buildBottomNavigationBar(),
+    );
+  }
+
+  // 构建头部（欢迎信息 + 搜索/操作栏）
+  Widget _buildHeader(TaskProvider taskProvider) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 欢迎信息行
+          if (!_isSearching && !_isMultiSelectMode) ...[
+            Row(
+              children: [
+                    Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '你好, $_username!',
+                          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _getGreeting(),
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // 用户头像
+                  CircleAvatar(
+                    radius: 24,
+                    backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                    child: Text(
+                      _username.isNotEmpty ? _username[0].toUpperCase() : 'U',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
+                  ),
+                ],
+            ),
+            const SizedBox(height: 16),
+          ],
+          // 搜索栏或标题行
+          _isMultiSelectMode
+              ? _buildMultiSelectHeader()
+              : _isSearching
+                  ? _buildSearchBar()
+                  : _buildActionBar(),
+        ],
       ),
     );
   }
 
-  PreferredSizeWidget _buildAppBar() {
-    return AppBar(
-      title: _isMultiSelectMode
-          ? Text('${_selectedTaskIds.length} 个已选')
-          : _isSearching
-              ? _buildSearchField()
-              : const Text('待办事项'),
-      bottom: const TabBar(
-        tabs: [
-          Tab(text: '全部'),
-          Tab(text: '待办'),
-          Tab(text: '已完成'),
-        ],
+  // 获取问候语
+  String _getGreeting() {
+    final hour = DateTime.now().hour;
+    if (hour < 12) {
+      return '早上好，今天有什么计划？';
+    } else if (hour < 18) {
+      return '下午好，继续加油！';
+    } else {
+      return '晚上好，今天辛苦了！';
+    }
+  }
+
+  // 多选模式头部
+  Widget _buildMultiSelectHeader() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.primaryContainer,
+        borderRadius: BorderRadius.circular(12),
       ),
-      actions: [
-        if (_isMultiSelectMode)
+      child: Row(
+        children: [
+          Icon(Icons.check_circle, color: Theme.of(context).colorScheme.primary),
+          const SizedBox(width: 12),
+          Text(
+            '已选择 ${_selectedTaskIds.length} 个任务',
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+          ),
+          const Spacer(),
           IconButton(
             icon: const Icon(Icons.close),
             onPressed: () => _toggleMultiSelectMode(false),
             tooltip: '取消选择',
-          )
-        else ...[
-          if (_isSearching)
-            IconButton(
-              icon: const Icon(Icons.clear),
-              onPressed: _clearSearch,
-              tooltip: '清除',
-            )
-          else
-            IconButton(
-              icon: const Icon(Icons.search),
-              onPressed: _startSearch,
-              tooltip: '搜索',
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 搜索栏
+  Widget _buildSearchBar() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.grey[100],
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: TextField(
+        controller: _searchController,
+        autofocus: true,
+        decoration: InputDecoration(
+          hintText: '搜索任务...',
+          prefixIcon: const Icon(Icons.search),
+          suffixIcon: IconButton(
+            icon: const Icon(Icons.clear),
+            onPressed: _clearSearch,
+          ),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        ),
+        onChanged: (query) {
+          context.read<TaskProvider>().searchTasks(query);
+        },
+      ),
+    );
+  }
+
+  // 操作栏（搜索 + 筛选按钮）
+  Widget _buildActionBar() {
+    return Row(
+      children: [
+        Expanded(
+          child: GestureDetector(
+            onTap: _startSearch,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.search, color: Colors.grey[500]),
+                  const SizedBox(width: 12),
+                  Text(
+                    '搜索任务...',
+                    style: TextStyle(color: Colors.grey[500]),
+                  ),
+                ],
+              ),
             ),
-          IconButton(
+          ),
+        ),
+        const SizedBox(width: 12),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.grey[100],
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: IconButton(
             icon: const Icon(Icons.filter_list),
             onPressed: _showFilterDialog,
             tooltip: '筛选',
           ),
-        ],
+        ),
       ],
+    );
+  }
+
+  // 动画标签栏
+  Widget _buildAnimatedTabBar(TaskProvider taskProvider) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20),
+      decoration: BoxDecoration(
+        color: Colors.grey[100],
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: TabBar(
+        tabs: [
+          Tab(text: '全部 (${taskProvider.allTasks.length})'),
+          Tab(text: '待办 (${taskProvider.allTasks.where((t) => !t.isCompleted).length})'),
+          Tab(text: '已完成 (${taskProvider.allTasks.where((t) => t.isCompleted).length})'),
+        ],
+        controller: _tabController,
+        indicator: BoxDecoration(
+          color: Theme.of(context).colorScheme.primary,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        indicatorPadding: const EdgeInsets.all(4),
+        indicatorSize: TabBarIndicatorSize.tab,
+        dividerColor: Colors.transparent,
+        labelColor: Colors.white,
+        unselectedLabelColor: Colors.grey[600],
+        labelStyle: const TextStyle(fontWeight: FontWeight.w600),
+      ),
     );
   }
 
@@ -129,276 +350,106 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.task_alt,
-            size: 100,
-            color: Colors.grey[300],
+          // 动画图标
+          TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0.8, end: 1.0),
+            duration: const Duration(milliseconds: 500),
+            curve: Curves.elasticOut,
+            builder: (context, value, child) {
+              return Transform.scale(
+                scale: value,
+                child: Container(
+                  width: 120,
+                  height: 120,
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.5),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.task_alt_rounded,
+                    size: 60,
+                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5),
+                  ),
+                ),
+              );
+            },
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 24),
           Text(
             '暂无任务',
-            style: TextStyle(
-              fontSize: 20,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
               color: Colors.grey[600],
             ),
           ),
           const SizedBox(height: 8),
           Text(
-            '点击右下角的 + 按钮添加新任务',
-            style: TextStyle(
-              color: Colors.grey[500],
-            ),
+            '点击下方的按钮添加新任务',
+            style: TextStyle(color: Colors.grey[500]),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildTabContent(TaskFilter filter) {
-    return Consumer<TaskProvider>(
-      builder: (context, taskProvider, child) {
-        // Apply the filter to show relevant tasks
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (taskProvider.currentFilter != filter && !_isSearching) {
-            taskProvider.setFilter(filter);
-          }
-        });
+  Widget _buildTabContent(TaskFilter filter, TaskProvider taskProvider) {
+    final tasks = _getTasksForFilter(filter, taskProvider);
 
-        // Show search results if searching
-        final tasks = _isSearching
-            ? taskProvider.tasks
-            : filter == TaskFilter.all
-                ? taskProvider.allTasks
-                : filter == TaskFilter.completed
-                    ? taskProvider.allTasks.where((t) => t.isCompleted).toList()
-                    : taskProvider.allTasks.where((t) => !t.isCompleted).toList();
-
-        if (tasks.isEmpty) {
-          return _buildEmptyState();
-        }
-
-        return Stack(
-          children: [
-            ListView.builder(
-              itemCount: tasks.length,
-              itemBuilder: (context, index) {
-                final task = tasks[index];
-                return _buildTaskItem(task);
-              },
-            ),
-            if (_isMultiSelectMode)
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 0,
-                child: _buildBatchActionBar(tasks),
-              ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildTaskItem(Task task) {
-    final isSelected = _selectedTaskIds.contains(task.id!);
-
-    if (_isMultiSelectMode) {
-      return ListTile(
-        leading: Checkbox(
-          value: isSelected,
-          onChanged: (bool? value) {
-            _toggleTaskSelection(task.id!);
-          },
-        ),
-        title: Text(
-          task.title,
-          style: TextStyle(
-            decoration: task.isCompleted ? TextDecoration.lineThrough : null,
-            color: task.isCompleted ? Colors.grey : null,
-          ),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (task.description != null && task.description!.isNotEmpty)
-              Text(
-                task.description!,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            Row(
-              children: [
-                _buildPriorityChip(task.priority),
-                const SizedBox(width: 8),
-                _buildCategoryChip(task.category),
-                if (task.dueDate != null) ...[
-                  const SizedBox(width: 8),
-                  Icon(
-                    Icons.event,
-                    size: 16,
-                    color: Colors.grey[600],
-                  ),
-                  Text(
-                    ' ${task.dueDate!.month}/${task.dueDate!.day}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ],
-        ),
-        tileColor: isSelected ? Colors.blue.withValues(alpha: 0.1) : null,
-        onTap: () => _toggleTaskSelection(task.id!),
-      );
+    if (tasks.isEmpty) {
+      return _buildEmptyState();
     }
 
-    return Dismissible(
-      key: Key(task.id.toString()),
-      background: Container(
-        color: Colors.green,
-        alignment: Alignment.centerLeft,
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: const Icon(
-          Icons.check_circle,
-          color: Colors.white,
-        ),
-      ),
-      secondaryBackground: Container(
-        color: Colors.red,
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: const Icon(
-          Icons.delete,
-          color: Colors.white,
-        ),
-      ),
-      confirmDismiss: (direction) async {
-        if (direction == DismissDirection.startToEnd) {
-          // Mark as completed
-          await context.read<TaskProvider>().toggleTaskCompletion(task.id!);
-          return false; // Don't dismiss the item
-        } else {
-          // Delete task
-          return await _showDeleteConfirmation(context);
-        }
-      },
-      onDismissed: (direction) {
-        if (direction == DismissDirection.endToStart) {
-          context.read<TaskProvider>().deleteTask(task.id!);
-        }
-      },
-      child: ListTile(
-        leading: Checkbox(
-          value: task.isCompleted,
-          onChanged: (bool? value) {
-            if (value != null) {
-              context.read<TaskProvider>().toggleTaskCompletion(task.id!);
-            }
-          },
-        ),
-        title: Text(
-          task.title,
-          style: TextStyle(
-            decoration: task.isCompleted ? TextDecoration.lineThrough : null,
-            color: task.isCompleted ? Colors.grey : null,
+    return Stack(
+      children: [
+        // 任务列表
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 300),
+          child: ListView.builder(
+            key: ValueKey('${filter}_${tasks.length}'),
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
+            itemCount: tasks.length,
+            itemBuilder: (context, index) {
+              final task = tasks[index];
+              return AnimatedTaskItem(
+                key: ValueKey(task.userId),
+                task: task,
+                index: index,
+                isSelected: _selectedTaskIds.contains(task.userId),
+                isMultiSelectMode: _isMultiSelectMode,
+                onSelect: () => _toggleTaskSelection(task.userId!),
+                onToggleComplete: () => context.read<TaskProvider>().toggleTaskCompletion(task.userId!),
+                onEdit: () => _navigateToEditTask(context, task),
+                onDelete: () => _deleteTask(task),
+              );
+            },
           ),
         ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (task.description != null && task.description!.isNotEmpty)
-              Text(
-                task.description!,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            Row(
-              children: [
-                _buildPriorityChip(task.priority),
-                const SizedBox(width: 8),
-                _buildCategoryChip(task.category),
-                if (task.dueDate != null) ...[
-                  const SizedBox(width: 8),
-                  Icon(
-                    Icons.event,
-                    size: 16,
-                    color: Colors.grey[600],
-                  ),
-                  Text(
-                    ' ${task.dueDate!.month}/${task.dueDate!.day}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ],
-        ),
-        trailing: IconButton(
-          icon: const Icon(Icons.edit),
-          onPressed: () => _navigateToEditTask(context, task),
-        ),
-        onTap: () {},
-        onLongPress: () {
-          _toggleMultiSelectMode(true);
-          _toggleTaskSelection(task.id!);
-        },
-      ),
+        // 批量操作栏
+        if (_isMultiSelectMode)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: _buildBatchActionBar(tasks),
+          ),
+      ],
     );
   }
 
-  Widget _buildPriorityChip(TaskPriority priority) {
-    Color color;
-    switch (priority) {
-      case TaskPriority.high:
-        color = Colors.red;
-        break;
-      case TaskPriority.medium:
-        color = Colors.orange;
-        break;
-      case TaskPriority.low:
-        color = Colors.green;
-        break;
+  // 根据过滤器获取任务列表
+  List<Task> _getTasksForFilter(TaskFilter filter, TaskProvider provider) {
+    final baseTasks = provider.isSearching ? provider.tasks : provider.allTasks;
+
+    switch (filter) {
+      case TaskFilter.all:
+        return baseTasks;
+      case TaskFilter.pending:
+        return baseTasks.where((t) => !t.isCompleted).toList();
+      case TaskFilter.completed:
+        return baseTasks.where((t) => t.isCompleted).toList();
+      case TaskFilter.priority:
+      case TaskFilter.category:
+        return baseTasks;
     }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Text(
-        Task.getPriorityText(priority),
-        style: TextStyle(
-          fontSize: 11,
-          color: color,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCategoryChip(TaskCategory category) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: Colors.blue.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Text(
-        Task.getCategoryText(category),
-        style: const TextStyle(
-          fontSize: 11,
-          color: Colors.blue,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-    );
   }
 
   Widget _buildBottomNavigationBar() {
@@ -410,8 +461,8 @@ class _HomeScreenState extends State<HomeScreen> {
             color: Colors.white,
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.1),
-                blurRadius: 4,
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 10,
                 offset: const Offset(0, -2),
               ),
             ],
@@ -419,7 +470,7 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _buildStatItem('总任务', taskProvider.totalTasks),
+              _buildStatItem('总任务', taskProvider.totalTasks, Colors.blue),
               _buildStatItem('已完成', taskProvider.completedTasks, Colors.green),
               _buildStatItem('待办', taskProvider.pendingTasks, Colors.orange),
               _buildProgressBar(taskProvider.completionRate),
@@ -430,17 +481,24 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildStatItem(String label, int value, [Color? color]) {
+  Widget _buildStatItem(String label, int value, Color color) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          '$value',
-          style: TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-            color: color ?? Colors.black,
-          ),
+        TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0, end: value.toDouble()),
+          duration: const Duration(milliseconds: 800),
+          curve: Curves.easeOut,
+          builder: (context, animatedValue, child) {
+            return Text(
+              animatedValue.toInt().toString(),
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+            );
+          },
         ),
         Text(
           label,
@@ -461,18 +519,37 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           Text(
             '${completionRate.toStringAsFixed(0)}%',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
+              color: completionRate == 100 ? Colors.green : Colors.blue,
             ),
           ),
           const SizedBox(height: 4),
-          LinearProgressIndicator(
-            value: completionRate / 100,
-            backgroundColor: Colors.grey[300],
-            valueColor: AlwaysStoppedAnimation<Color>(
-              completionRate == 100 ? Colors.green : Colors.blue,
-            ),
+          Stack(
+            children: [
+              Container(
+                height: 6,
+                decoration: BoxDecoration(
+                  color: Colors.grey[200],
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              ),
+              FractionallySizedBox(
+                widthFactor: completionRate / 100,
+                child: Container(
+                  height: 6,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: completionRate == 100
+                          ? [Colors.green, Colors.lightGreen]
+                          : [Colors.blue, Colors.lightBlue],
+                    ),
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                ),
+              ),
+            ],
           ),
           Text(
             '完成率',
@@ -504,24 +581,65 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _showFilterDialog() {
-    showDialog(
+  Future<void> _deleteTask(Task task) async {
+    final confirmed = await showDialog<bool>(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text('筛选任务'),
-          content: Column(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('确认删除'),
+          content: Text('确定要删除任务 "${task.title}" 吗？'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: FilledButton.styleFrom(backgroundColor: Colors.red),
+              child: const Text('删除'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed == true && mounted) {
+      context.read<TaskProvider>().deleteTask(task.userId!);
+    }
+  }
+
+  void _showFilterDialog() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.all(20),
+          child: Column(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Text(
+                '筛选任务',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 16),
               ListTile(
+                leading: const Icon(Icons.flag, color: Colors.red),
                 title: const Text('按优先级'),
+                trailing: const Icon(Icons.chevron_right),
                 onTap: () {
                   Navigator.pop(context);
                   _showPriorityFilterDialog();
                 },
               ),
               ListTile(
+                leading: const Icon(Icons.category, color: Colors.blue),
                 title: const Text('按分类'),
+                trailing: const Icon(Icons.chevron_right),
                 onTap: () {
                   Navigator.pop(context);
                   _showCategoryFilterDialog();
@@ -529,14 +647,6 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              child: const Text('取消'),
-            ),
-          ],
         );
       },
     );
@@ -547,11 +657,20 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: const Text('选择优先级'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: TaskPriority.values.map((priority) {
               return ListTile(
+                leading: Icon(
+                  Icons.flag,
+                  color: priority == TaskPriority.high
+                      ? Colors.red
+                      : priority == TaskPriority.medium
+                          ? Colors.orange
+                          : Colors.green,
+                ),
                 title: Text(Task.getPriorityText(priority)),
                 onTap: () {
                   context.read<TaskProvider>().filterByPriority(priority);
@@ -570,48 +689,46 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: const Text('选择分类'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: TaskCategory.values.map((category) {
-              return ListTile(
-                title: Text(Task.getCategoryText(category)),
-                onTap: () {
-                  // Implement category filter
-                  Navigator.pop(context);
-                },
-              );
-            }).toList(),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: TaskCategory.values.length,
+              itemBuilder: (context, index) {
+                final category = TaskCategory.values[index];
+                return ListTile(
+                  leading: Icon(
+                    _getCategoryIcon(category),
+                    color: Colors.blue,
+                  ),
+                  title: Text(Task.getCategoryText(category)),
+                  onTap: () {
+                    Navigator.pop(context);
+                  },
+                );
+              },
+            ),
           ),
         );
       },
     );
   }
 
-  Future<bool> _showDeleteConfirmation(BuildContext context) async {
-    return await showDialog<bool>(
-          context: context,
-          builder: (BuildContext context) {
-            return AlertDialog(
-              title: const Text('确认删除'),
-              content: const Text('确定要删除这个任务吗？'),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(false),
-                  child: const Text('取消'),
-                ),
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(true),
-                  child: const Text(
-                    '删除',
-                    style: TextStyle(color: Colors.red),
-                  ),
-                ),
-              ],
-            );
-          },
-        ) ??
-        false;
+  IconData _getCategoryIcon(TaskCategory category) {
+    switch (category) {
+      case TaskCategory.work:
+        return Icons.work;
+      case TaskCategory.personal:
+        return Icons.person;
+      case TaskCategory.shopping:
+        return Icons.shopping_cart;
+      case TaskCategory.health:
+        return Icons.favorite;
+      case TaskCategory.other:
+        return Icons.more_horiz;
+    }
   }
 
   // Search methods
@@ -626,22 +743,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _isSearching = false;
       _searchController.clear();
     });
-    context.read<TaskProvider>().loadTasks();
-  }
-
-  Widget _buildSearchField() {
-    return TextField(
-      controller: _searchController,
-      autofocus: true,
-      decoration: const InputDecoration(
-        hintText: '搜索任务...',
-        border: InputBorder.none,
-      ),
-      style: const TextStyle(fontSize: 18),
-      onChanged: (query) {
-        context.read<TaskProvider>().searchTasks(query);
-      },
-    );
+    context.read<TaskProvider>().searchTasks('');
   }
 
   // Selection mode methods
@@ -654,7 +756,7 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  void _toggleTaskSelection(int taskId) {
+  void _toggleTaskSelection(String taskId) {
     setState(() {
       if (_selectedTaskIds.contains(taskId)) {
         _selectedTaskIds.remove(taskId);
@@ -671,7 +773,7 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {
       _selectedTaskIds.clear();
       for (final task in tasks) {
-        _selectedTaskIds.add(task.id!);
+        _selectedTaskIds.add(task.userId!);
       }
     });
   }
@@ -694,7 +796,7 @@ class _HomeScreenState extends State<HomeScreen> {
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 4,
+            blurRadius: 10,
             offset: const Offset(0, -2),
           ),
         ],
@@ -702,7 +804,6 @@ class _HomeScreenState extends State<HomeScreen> {
       child: SafeArea(
         child: Row(
           children: [
-            // Select all checkbox
             InkWell(
               onTap: () {
                 if (allSelected) {
@@ -728,32 +829,23 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             const Spacer(),
-            // Batch delete button
             IconButton(
-              icon: const Icon(Icons.delete),
+              icon: const Icon(Icons.delete_outline),
               onPressed: hasSelection ? () => _performBatchDelete(context) : null,
               tooltip: '删除',
               color: Colors.red,
             ),
-            // Batch complete button
             IconButton(
-              icon: const Icon(Icons.check_circle),
+              icon: const Icon(Icons.check_circle_outline),
               onPressed: hasSelection ? () => _performBatchComplete(context) : null,
               tooltip: '标记完成',
               color: Colors.green,
             ),
-            // Batch incomplete button
             IconButton(
               icon: const Icon(Icons.radio_button_unchecked),
               onPressed: hasSelection ? () => _performBatchIncomplete(context) : null,
               tooltip: '标记未完成',
               color: Colors.orange,
-            ),
-            // Close button
-            IconButton(
-              icon: const Icon(Icons.close),
-              onPressed: () => _toggleMultiSelectMode(false),
-              tooltip: '取消',
             ),
           ],
         ),
@@ -766,6 +858,7 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: const Text('确认删除'),
           content: Text('确定要删除选中的 ${_selectedTaskIds.length} 个任务吗？'),
           actions: [
@@ -773,12 +866,10 @@ class _HomeScreenState extends State<HomeScreen> {
               onPressed: () => Navigator.of(context).pop(false),
               child: const Text('取消'),
             ),
-            TextButton(
+            FilledButton(
               onPressed: () => Navigator.of(context).pop(true),
-              child: const Text(
-                '删除',
-                style: TextStyle(color: Colors.red),
-              ),
+              style: FilledButton.styleFrom(backgroundColor: Colors.red),
+              child: const Text('删除'),
             ),
           ],
         );
@@ -799,5 +890,254 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _performBatchIncomplete(BuildContext context) async {
     await context.read<TaskProvider>().setCompletionStatus(_selectedTaskIds.toList(), false);
     _toggleMultiSelectMode(false);
+  }
+}
+
+// 动画任务项组件
+class AnimatedTaskItem extends StatefulWidget {
+  final Task task;
+  final int index;
+  final bool isSelected;
+  final bool isMultiSelectMode;
+  final VoidCallback onSelect;
+  final VoidCallback onToggleComplete;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  const AnimatedTaskItem({
+    super.key,
+    required this.task,
+    required this.index,
+    required this.isSelected,
+    required this.isMultiSelectMode,
+    required this.onSelect,
+    required this.onToggleComplete,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  @override
+  State<AnimatedTaskItem> createState() => _AnimatedTaskItemState();
+}
+
+class _AnimatedTaskItemState extends State<AnimatedTaskItem>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _fadeAnimation;
+  late Animation<Offset> _slideAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: Duration(milliseconds: 300 + (widget.index * 50)),
+      vsync: this,
+    );
+
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
+    );
+
+    _slideAnimation = Tween<Offset>(
+      begin: const Offset(0.1, 0),
+      end: Offset.zero,
+    ).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
+    );
+
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _fadeAnimation,
+      child: SlideTransition(
+        position: _slideAnimation,
+        child: _buildTaskCard(),
+      ),
+    );
+  }
+
+  Widget _buildTaskCard() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: widget.isSelected ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.3) : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+        border: widget.isSelected
+            ? Border.all(color: Theme.of(context).colorScheme.primary, width: 2)
+            : null,
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: widget.isMultiSelectMode ? widget.onSelect : null,
+          onLongPress: widget.isMultiSelectMode ? null : () {
+            // 进入多选模式
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                // 复选框或选择指示器
+                GestureDetector(
+                  onTap: widget.isMultiSelectMode ? widget.onSelect : widget.onToggleComplete,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: widget.task.isCompleted
+                          ? Colors.green
+                          : widget.isSelected
+                              ? Theme.of(context).colorScheme.primary
+                              : Colors.transparent,
+                      border: Border.all(
+                        color: widget.task.isCompleted
+                            ? Colors.green
+                            : widget.isSelected
+                                ? Theme.of(context).colorScheme.primary
+                                : Colors.grey[400]!,
+                        width: 2,
+                      ),
+                    ),
+                    child: widget.task.isCompleted || widget.isSelected
+                        ? const Icon(Icons.check, color: Colors.white, size: 16)
+                        : null,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                // 任务内容
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.task.title,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          decoration: widget.task.isCompleted ? TextDecoration.lineThrough : null,
+                          color: widget.task.isCompleted ? Colors.grey : null,
+                        ),
+                      ),
+                      if (widget.task.description != null && widget.task.description!.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          widget.task.description!,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          _buildPriorityChip(widget.task.priority),
+                          const SizedBox(width: 8),
+                          _buildCategoryChip(widget.task.category),
+                          if (widget.task.dueDate != null) ...[
+                            const SizedBox(width: 8),
+                            Icon(Icons.event, size: 14, color: Colors.grey[500]),
+                            const SizedBox(width: 4),
+                            Text(
+                              '${widget.task.dueDate!.month}/${widget.task.dueDate!.day}',
+                              style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                            ),
+                          ],
+                          if (widget.task.creatorName != null && widget.task.creatorName!.isNotEmpty) ...[
+                            const SizedBox(width: 8),
+                            Icon(Icons.person_outline, size: 14, color: Colors.grey[400]),
+                            const SizedBox(width: 4),
+                            Text(
+                              widget.task.creatorName!,
+                              style: TextStyle(fontSize: 11, color: Colors.grey[400]),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                // 编辑按钮
+                if (!widget.isMultiSelectMode)
+                  IconButton(
+                    icon: Icon(Icons.edit_outlined, color: Colors.grey[400]),
+                    onPressed: widget.onEdit,
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPriorityChip(TaskPriority priority) {
+    Color color;
+    switch (priority) {
+      case TaskPriority.high:
+        color = Colors.red;
+        break;
+      case TaskPriority.medium:
+        color = Colors.orange;
+        break;
+      case TaskPriority.low:
+        color = Colors.green;
+        break;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        Task.getPriorityText(priority),
+        style: TextStyle(
+          fontSize: 11,
+          color: color,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCategoryChip(TaskCategory category) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.blue.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        Task.getCategoryText(category),
+        style: const TextStyle(
+          fontSize: 11,
+          color: Colors.blue,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
   }
 }

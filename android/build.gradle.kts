@@ -1,7 +1,17 @@
 allprojects {
     repositories {
+        maven { url = uri("https://maven.aliyun.com/repository/google") }
+        maven { url = uri("https://maven.aliyun.com/repository/central") }
+        maven { url = uri("https://maven.aliyun.com/repository/gradle-plugin") }
         google()
         mavenCentral()
+    }
+}
+
+// Google Services 插件
+buildscript {
+    dependencies {
+        classpath("com.google.gms:google-services:4.4.2")
     }
 }
 
