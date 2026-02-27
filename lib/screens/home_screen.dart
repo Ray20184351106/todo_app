@@ -5,6 +5,7 @@ import '../models/task.dart';
 import '../providers/task_provider.dart';
 import '../services/user_service.dart';
 import 'add_edit_task_screen.dart';
+import 'user_name_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -133,12 +134,25 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           ? null
           : ScaleTransition(
               scale: _fabAnimation,
-              child: FloatingActionButton.extended(
-                onPressed: () => _navigateToAddTask(context),
-                tooltip: '添加任务',
-                icon: const Icon(Icons.add),
-                label: const Text('添加任务'),
-                elevation: 4,
+              child: Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFFFFB7C5).withOpacity(0.4),
+                      blurRadius: 12,
+                      spreadRadius: 2,
+                    ),
+                  ],
+                ),
+                child: FloatingActionButton.extended(
+                  onPressed: () => _navigateToAddTask(context),
+                  tooltip: '添加任务',
+                  icon: const Icon(Icons.add, color: Colors.white),
+                  label: const Text('添加任务', style: TextStyle(color: Colors.white)),
+                  backgroundColor: const Color(0xFFFFB7C5),
+                  elevation: 0,
+                ),
               ),
             ),
       bottomNavigationBar: _buildBottomNavigationBar(),
@@ -157,7 +171,28 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           if (!_isSearching && !_isMultiSelectMode) ...[
             Row(
               children: [
-                    Expanded(
+                  // Hello Kitty 头像
+                  Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: const Color(0xFFFFB7C5).withOpacity(0.2),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(4),
+                      child: ClipOval(
+                        child: Image.asset(
+                          'assets/images/kitty_face.png',
+                          width: 44,
+                          height: 44,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -169,7 +204,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          _getGreeting(),
+                          '今天也要加油哦~',
                           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                             color: Colors.grey[600],
                           ),
@@ -177,18 +212,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       ],
                     ),
                   ),
-                  // 用户头像
-                  CircleAvatar(
-                    radius: 24,
-                    backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-                    child: Text(
-                      _username.isNotEmpty ? _username[0].toUpperCase() : 'U',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                    ),
+                  // 退出登录按钮
+                  IconButton(
+                    icon: const Icon(Icons.logout, color: Color(0xFFFF8FAB)),
+                    onPressed: _logout,
+                    tooltip: '退出登录',
                   ),
                 ],
             ),
@@ -350,7 +378,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // 动画图标
+          // Hello Kitty 拿相机图片
           TweenAnimationBuilder<double>(
             tween: Tween(begin: 0.8, end: 1.0),
             duration: const Duration(milliseconds: 500),
@@ -358,32 +386,24 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             builder: (context, value, child) {
               return Transform.scale(
                 scale: value,
-                child: Container(
+                child: Image.asset(
+                  'assets/images/kitty_camera.png',
                   width: 120,
                   height: 120,
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.5),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.task_alt_rounded,
-                    size: 60,
-                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5),
-                  ),
                 ),
               );
             },
           ),
           const SizedBox(height: 24),
           Text(
-            '暂无任务',
+            '暂无任务~',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
               color: Colors.grey[600],
             ),
           ),
           const SizedBox(height: 8),
           Text(
-            '点击下方的按钮添加新任务',
+            '点击下方按钮添加新任务吧!',
             style: TextStyle(color: Colors.grey[500]),
           ),
         ],
@@ -463,7 +483,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             color: Colors.white,
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
+                color: const Color(0xFFFFB7C5).withOpacity(0.2),
                 blurRadius: 10,
                 offset: const Offset(0, -2),
               ),
@@ -472,10 +492,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _buildStatItem('总任务', taskProvider.totalTasks, Colors.blue),
-              _buildStatItem('已完成', taskProvider.completedTasks, Colors.green),
-              _buildStatItem('待办', taskProvider.pendingTasks, Colors.orange),
+              _buildStatItem('总任务', taskProvider.totalTasks, const Color(0xFFFF8FAB)),
+              _buildStatItem('已完成', taskProvider.completedTasks, const Color(0xFF98D8AA)),
+              _buildStatItem('待办', taskProvider.pendingTasks, const Color(0xFFFFB7C5)),
               _buildProgressBar(taskProvider.completionRate),
+              // 右下角小 Kitty 装饰
+              Image.asset(
+                'assets/images/kitty_side.png',
+                width: 28,
+                height: 28,
+              ),
             ],
           ),
         );
@@ -524,7 +550,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: completionRate == 100 ? Colors.green : Colors.blue,
+              color: completionRate == 100 ? const Color(0xFF98D8AA) : const Color(0xFFFF8FAB),
             ),
           ),
           const SizedBox(height: 4),
@@ -544,8 +570,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: completionRate == 100
-                          ? [Colors.green, Colors.lightGreen]
-                          : [Colors.blue, Colors.lightBlue],
+                          ? [const Color(0xFF98D8AA), const Color(0xFFB8E6C8)]
+                          : [const Color(0xFFFFB7C5), const Color(0xFFFFD1DC)],
                     ),
                     borderRadius: BorderRadius.circular(3),
                   ),
@@ -581,6 +607,43 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         builder: (context) => AddEditTaskScreen(task: task),
       ),
     );
+  }
+
+  // 退出登录
+  Future<void> _logout() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('确认退出'),
+          content: const Text('确定要退出登录吗？'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFFFFB7C5),
+              ),
+              child: const Text('退出'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed == true && mounted) {
+      final userService = UserService();
+      await userService.clearUsername();
+      if (mounted) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const UserNameScreen()),
+        );
+      }
+    }
   }
 
   Future<void> _deleteTask(Task task) async {
@@ -664,14 +727,22 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: TaskPriority.values.map((priority) {
+              Color priorityColor;
+              switch (priority) {
+                case TaskPriority.high:
+                  priorityColor = const Color(0xFFFF6B8A);
+                  break;
+                case TaskPriority.medium:
+                  priorityColor = const Color(0xFFFFB7C5);
+                  break;
+                case TaskPriority.low:
+                  priorityColor = const Color(0xFF98D8AA);
+                  break;
+              }
               return ListTile(
                 leading: Icon(
                   Icons.flag,
-                  color: priority == TaskPriority.high
-                      ? Colors.red
-                      : priority == TaskPriority.medium
-                          ? Colors.orange
-                          : Colors.green,
+                  color: priorityColor,
                 ),
                 title: Text(Task.getPriorityText(priority)),
                 onTap: () {
@@ -703,7 +774,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 return ListTile(
                   leading: Icon(
                     _getCategoryIcon(category),
-                    color: Colors.blue,
+                    color: const Color(0xFFFF8FAB),
                   ),
                   title: Text(Task.getCategoryText(category)),
                   onTap: () {
@@ -1055,13 +1126,16 @@ class _AnimatedTaskItemState extends State<AnimatedTaskItem>
 
   // 获取优先级颜色
   Color _getPriorityColor() {
+    if (widget.task.isCompleted) {
+      return Colors.grey;
+    }
     switch (widget.task.priority) {
       case TaskPriority.high:
-        return Colors.red;
+        return const Color(0xFFFF6B8A); // 玫瑰红
       case TaskPriority.medium:
-        return Colors.orange;
+        return const Color(0xFFFFB7C5); // 樱花粉
       case TaskPriority.low:
-        return Colors.green;
+        return const Color(0xFF98D8AA); // 薄荷绿
     }
   }
 
@@ -1273,6 +1347,15 @@ class _AnimatedTaskItemState extends State<AnimatedTaskItem>
                               _buildPriorityChip(widget.task.priority),
                               const SizedBox(width: 8),
                               _buildCategoryChip(widget.task.category),
+                              // 创建日期
+                              const SizedBox(width: 8),
+                              Icon(Icons.add_circle_outline, size: 14, color: Colors.grey[500]),
+                              const SizedBox(width: 4),
+                              Text(
+                                '${widget.task.createdAt.month}/${widget.task.createdAt.day}',
+                                style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                              ),
+                              // 截止日期
                               if (widget.task.dueDate != null) ...[
                                 const SizedBox(width: 8),
                                 Icon(Icons.event, size: 14, color: Colors.grey[500]),
@@ -1316,20 +1399,20 @@ class _AnimatedTaskItemState extends State<AnimatedTaskItem>
     Color color;
     switch (priority) {
       case TaskPriority.high:
-        color = Colors.red;
+        color = const Color(0xFFFF6B8A); // 玫瑰红
         break;
       case TaskPriority.medium:
-        color = Colors.orange;
+        color = const Color(0xFFFFB7C5); // 樱花粉
         break;
       case TaskPriority.low:
-        color = Colors.green;
+        color = const Color(0xFF98D8AA); // 薄荷绿
         break;
     }
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
+        color: color.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
@@ -1347,14 +1430,14 @@ class _AnimatedTaskItemState extends State<AnimatedTaskItem>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.blue.withValues(alpha: 0.1),
+        color: const Color(0xFFFFB7C5).withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
         Task.getCategoryText(category),
         style: const TextStyle(
           fontSize: 11,
-          color: Colors.blue,
+          color: Color(0xFFFF8FAB),
           fontWeight: FontWeight.w600,
         ),
       ),

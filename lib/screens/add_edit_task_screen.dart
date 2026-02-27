@@ -78,11 +78,19 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
   Widget _buildTitleField() {
     return TextFormField(
       controller: _titleController,
-      decoration: const InputDecoration(
+      decoration: InputDecoration(
         labelText: '任务标题 *',
         hintText: '输入任务标题',
-        border: OutlineInputBorder(),
-        prefixIcon: Icon(Icons.title),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFFFFB7C5), width: 2),
+        ),
+        prefixIcon: const Icon(Icons.title, color: Color(0xFFFFB7C5)),
+        filled: true,
+        fillColor: Colors.white,
       ),
       validator: (value) {
         if (value == null || value.trim().isEmpty) {
@@ -98,11 +106,19 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
   Widget _buildDescriptionField() {
     return TextFormField(
       controller: _descriptionController,
-      decoration: const InputDecoration(
+      decoration: InputDecoration(
         labelText: '任务描述',
         hintText: '输入任务描述（可选）',
-        border: OutlineInputBorder(),
-        prefixIcon: Icon(Icons.description),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFFFFB7C5), width: 2),
+        ),
+        prefixIcon: const Icon(Icons.description, color: Color(0xFFFFB7C5)),
+        filled: true,
+        fillColor: Colors.white,
       ),
       maxLines: 3,
       maxLength: 500,
@@ -172,10 +188,10 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
                   });
                 }
               },
-              backgroundColor: Colors.blue.withOpacity(0.1),
-              selectedColor: Colors.blue.withOpacity(0.3),
+              backgroundColor: const Color(0xFFFFB7C5).withOpacity(0.1),
+              selectedColor: const Color(0xFFFFB7C5).withOpacity(0.3),
               labelStyle: const TextStyle(
-                color: Colors.blue,
+                color: Color(0xFFFF8FAB),
               ),
             );
           }).toList(),
@@ -201,12 +217,13 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
           child: Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              border: Border.all(color: Colors.grey),
-              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFFFB7C5).withOpacity(0.5)),
+              borderRadius: BorderRadius.circular(12),
+              color: Colors.white,
             ),
             child: Row(
               children: [
-                const Icon(Icons.calendar_today),
+                const Icon(Icons.calendar_today, color: Color(0xFFFFB7C5)),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
@@ -220,7 +237,7 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
                 ),
                 if (_selectedDueDate != null)
                   IconButton(
-                    icon: const Icon(Icons.clear),
+                    icon: const Icon(Icons.clear, color: Color(0xFFFF8FAB)),
                     onPressed: () {
                       setState(() {
                         _selectedDueDate = null;
@@ -243,8 +260,14 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
             onPressed: _saveTask,
             style: ElevatedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 16),
+              backgroundColor: const Color(0xFFFFB7C5),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              elevation: 0,
             ),
-            child: Text(_isEditing ? '保存修改' : '创建任务', style: TextStyle(fontSize: 16)),
+            child: Text(_isEditing ? '保存修改' : '创建任务', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
           ),
         ),
         if (_isEditing) ...[
@@ -254,8 +277,12 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
               onPressed: () => Navigator.of(context).pop(),
               style: OutlinedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 16),
+                side: const BorderSide(color: Color(0xFFFFB7C5)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
-              child: const Text('取消', style: TextStyle(fontSize: 16)),
+              child: const Text('取消', style: TextStyle(fontSize: 16, color: Color(0xFFFF8FAB))),
             ),
           ),
         ],
@@ -315,11 +342,11 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
   Color _getPriorityColor(TaskPriority priority) {
     switch (priority) {
       case TaskPriority.high:
-        return Colors.red;
+        return const Color(0xFFFF6B8A); // 玫瑰红
       case TaskPriority.medium:
-        return Colors.orange;
+        return const Color(0xFFFFB7C5); // 樱花粉
       case TaskPriority.low:
-        return Colors.green;
+        return const Color(0xFF98D8AA); // 薄荷绿
     }
   }
 }

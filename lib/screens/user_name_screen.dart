@@ -63,6 +63,7 @@ class _UserNameScreenState extends State<UserNameScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFFFF5F7), // 粉白背景
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -70,34 +71,28 @@ class _UserNameScreenState extends State<UserNameScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Logo/Icon
-                Container(
+                const SizedBox(height: 40),
+                // Hello Kitty 信封图片
+                Image.asset(
+                  'assets/images/kitty_letter.png',
                   width: 100,
                   height: 100,
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primaryContainer,
-                    borderRadius: BorderRadius.circular(50),
-                  ),
-                  child: Icon(
-                    Icons.person_outline,
-                    size: 50,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
                 ),
-                const SizedBox(height: 32),
+                const SizedBox(height: 24),
 
                 // 标题
                 Text(
-                  '欢迎来到待办事项',
+                  '欢迎来到待办清单',
                   style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                         fontWeight: FontWeight.bold,
+                        color: const Color(0xFFFF8FAB),
                       ),
                 ),
                 const SizedBox(height: 8),
 
                 // 副标题
                 Text(
-                  '请输入您的名字开始使用',
+                  '请输入您的名字开始使用~',
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                         color: Colors.grey[600],
                       ),
@@ -112,12 +107,19 @@ class _UserNameScreenState extends State<UserNameScreen> {
                       // 用户名输入框
                       TextFormField(
                         controller: _nameController,
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           labelText: '您的名字',
-                          hintText: '例如: 小明',
-                          prefixIcon: Icon(Icons.person),
-                          border: OutlineInputBorder(),
+                          hintText: '例如: 小芬',
+                          prefixIcon: const Icon(Icons.person, color: Color(0xFFFFB7C5)),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFFFFB7C5), width: 2),
+                          ),
                           filled: true,
+                          fillColor: Colors.white,
                         ),
                         textCapitalization: TextCapitalization.words,
                         autofocus: true,
@@ -143,18 +145,18 @@ class _UserNameScreenState extends State<UserNameScreen> {
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: Colors.red.shade50,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.red.shade200),
+                            color: const Color(0xFFFF6B8A).withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFFFF6B8A).withOpacity(0.3)),
                           ),
                           child: Row(
                             children: [
-                              Icon(Icons.error_outline, color: Colors.red.shade700, size: 20),
+                              const Icon(Icons.error_outline, color: Color(0xFFFF6B8A), size: 20),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
                                   _errorMessage!,
-                                  style: TextStyle(color: Colors.red.shade700),
+                                  style: const TextStyle(color: Color(0xFFFF6B8A)),
                                 ),
                               ),
                             ],
@@ -170,9 +172,12 @@ class _UserNameScreenState extends State<UserNameScreen> {
                         child: ElevatedButton(
                           onPressed: _isLoading ? null : _submitUsername,
                           style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFFFB7C5),
+                            foregroundColor: Colors.white,
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
+                              borderRadius: BorderRadius.circular(12),
                             ),
+                            elevation: 0,
                           ),
                           child: _isLoading
                               ? const SizedBox(
@@ -185,7 +190,7 @@ class _UserNameScreenState extends State<UserNameScreen> {
                                 )
                               : const Text(
                                   '开始使用',
-                                  style: TextStyle(fontSize: 16),
+                                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                                 ),
                         ),
                       ),
@@ -198,18 +203,19 @@ class _UserNameScreenState extends State<UserNameScreen> {
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.blue.shade50,
+                    color: const Color(0xFFFFB7C5).withOpacity(0.1),
                     borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFFFB7C5).withOpacity(0.3)),
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.info_outline, color: Colors.blue.shade700, size: 20),
+                      const Icon(Icons.favorite, color: Color(0xFFFF8FAB), size: 20),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
-                          '您的名字将显示在您创建的任务上，方便与其他用户区分',
+                          '您的名字将显示在您创建的任务上',
                           style: TextStyle(
-                            color: Colors.blue.shade700,
+                            color: const Color(0xFFFF8FAB),
                             fontSize: 13,
                           ),
                         ),

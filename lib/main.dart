@@ -31,11 +31,16 @@ class TodoApp extends StatelessWidget {
         title: AppConstants.appName,
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: const Color(0xFFFFB7C5), // 樱花粉
+            brightness: Brightness.light,
+          ),
+          scaffoldBackgroundColor: const Color(0xFFFFF5F7), // 粉白背景
           useMaterial3: true,
           appBarTheme: const AppBarTheme(
             centerTitle: true,
             elevation: 0,
+            backgroundColor: Color(0xFFFFF5F7),
           ),
         ),
         // 添加本地化支持
