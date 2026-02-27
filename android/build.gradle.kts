@@ -10,6 +10,12 @@ allprojects {
 
 // Google Services 插件
 buildscript {
+    repositories {
+        maven { url = uri("https://maven.aliyun.com/repository/google") }
+        maven { url = uri("https://maven.aliyun.com/repository/central") }
+        google()
+        mavenCentral()
+    }
     dependencies {
         classpath("com.google.gms:google-services:4.4.2")
     }

@@ -204,7 +204,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          '今天也要加油哦~',
+                          _getLoveGreeting(),
                           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                             color: Colors.grey[600],
                           ),
@@ -243,6 +243,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     } else {
       return '晚上好，今天辛苦了！';
     }
+  }
+
+  // 获取情侣问候语
+  String _getLoveGreeting() {
+    if (_username == '小雷') {
+      return '今天也要爱小芬~';
+    } else if (_username == '芬芬') {
+      return '今天也要爱小雷~';
+    }
+    return '今天也要加油哦~';
   }
 
   // 多选模式头部
