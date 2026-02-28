@@ -248,9 +248,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   // 获取情侣问候语
   String _getLoveGreeting() {
     if (_username == '小雷') {
-      return '今天也要爱小芬~';
+      return '今天也要爱小芬鸭~';
     } else if (_username == '芬芬') {
-      return '今天也要爱小雷~';
+      return '今天也要爱小雷鸭~';
     }
     return '今天也要加油哦~';
   }
