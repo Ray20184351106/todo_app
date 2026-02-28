@@ -1,143 +1,136 @@
-# 待办事项 App
+# 🌸 情侣待办清单 APP
 
-一款使用Flutter开发的轻量级待办事项应用，支持本地存储以及文件同步功能，适合小范围团队使用（最多5人）。
+专为情侣设计的 Hello Kitty 浪漫主题待办事项应用。
 
-## 功能特性
+---
 
-✅ **核心功能**
-- 任务管理：创建、编辑、删除、标记完成
-- 任务分类：工作、个人、购物、健康、其他
-- 优先级设置：低、中、高
-- 截止日期支持
-- 任务筛选：全部/待办/已完成
-- 基本统计：完成率、任务数量统计
+## ✨ 功能特点
 
-✅ **数据管理**
-- 本地SQLite数据库存储
-- 数据导入/导出（JSON格式）
-- 支持通过云盘进行文件同步
+- 🌸 **Hello Kitty 樱花粉浪漫主题**
+- 👥 **情侣选择界面**（小雷 / 芬芬）
+- 💕 **互爱问候语**
+  - 小雷登录：今天也要爱小芬~
+  - 芬芬登录：今天也要爱小雷鸭~
+- 📅 **任务创建日期显示**
+- ☁️ **Supabase 云端实时同步**
+- 🔐 **退出登录功能**
 
-## 技术栈
+---
 
-- **Flutter**: 3.11.0+
-- **Dart**: 3.3.0+
-- **状态管理**: Provider
-- **本地数据库**: sqflite
-- **路径管理**: path_provider
-- **日期格式化**: intl
+## 📱 下载安装
 
-## 快速开始
+### Android
+```bash
+# 位置
+build/app/outputs/flutter-apk/app-release.apk
 
-### 环境要求
+# 直接下载安装即可
+```
 
-- Flutter SDK 3.11.0 或更高版本
-- Dart SDK 3.3.0 或更高版本
-- Android Studio（用于Android开发）或 Xcode（用于iOS开发）
+### iOS (免费，无需 Mac)
+1. **构建 IPA**：[iOS 构建指南](./IOS_BUILD_GUIDE.md)
+2. **在线签名**：[AppDb.to 签名指南](./APPDB_SIGN_GUIDE.md)
 
-### 获取依赖
+**无需数据线，直接发链接给女朋友安装！**
+
+---
+
+## 🎨 颜色方案
+
+| 用途 | 颜色代码 | 名称 |
+|------|---------|------|
+| 主色 | `#FFB7C5` | 樱花粉 |
+| 浅色 | `#FFD1DC` | 淡粉 |
+| 深色 | `#FF8FAB` | 玫瑰粉 |
+| 背景 | `#FFF5F7` | 粉白 |
+| 高优先级 | `#FF6B8A` | 玫瑰红 |
+| 低优先级 | `#98D8AA` | 薄荷绿 |
+
+---
+
+## 🛠️ 开发环境
 
 ```bash
-cd todo_app
+# 安装依赖
 flutter pub get
+
+# 运行 (Chrome)
+flutter run -d chrome
+
+# 运行 (Android)
+flutter run -d android
+
+# 构建 Android APK
+flutter build apk --release
+
+# 构建 iOS (需要 Mac)
+flutter build ios --release
 ```
 
-### 运行应用
+---
 
-```bash
-# Android
-flutter run
+## 📁 项目结构
 
-# iOS（需要macOS和Xcode）
-flutter run -d "iPhone Simulator"
+```
+lib/
+├── main.dart                 # 应用入口，樱花粉主题配置
+├── models/
+│   └── task.dart             # 任务数据模型
+├── providers/
+│   └── task_provider.dart    # 任务状态管理
+├── screens/
+│   ├── home_screen.dart      # 主界面
+│   ├── user_name_screen.dart # 情侣选择界面
+│   └── add_edit_task_screen.dart  # 添加/编辑任务
+├── services/
+│   ├── supabase_service.dart # Supabase 云同步
+│   ├── user_service.dart     # 用户信息管理
+│   └── database_service.dart # 本地数据库
+└── constants/
+    └── app_constants.dart    # 常量定义
+
+assets/images/
+├── kitty_camera.png          # 空状态 Hello Kitty
+├── kitty_face.png            # 头部 Hello Kitty 头像
+├── kitty_side.png            # 底部 Hello Kitty 侧脸
+├── kitty_letter.png          # 欢迎页 Hello Kitty 信封
+├── user_xiaolei.jpg          # 小雷头像
+└── user_fenfen.jpg           # 芬芬头像
 ```
 
-### 构建发布版本
+---
 
-```bash
-# Android APK
-flutter build apk
+## 📖 使用文档
 
-# Android App Bundle
-flutter build appbundle
-```
+| 文档 | 说明 |
+|------|------|
+| [IOS_BUILD_GUIDE.md](./IOS_BUILD_GUIDE.md) | iOS 构建完整指南 |
+| [APPDB_SIGN_GUIDE.md](./APPDB_SIGN_GUIDE.md) | AppDb.to 在线签名指南 |
 
-## 使用说明
+---
 
-### 创建任务
-1. 点击右下角的 "+" 按钮
-2. 填写任务标题（必填）
-3. 选择优先级和分类
-4. 设置截止日期（可选）
-5. 点击"创建任务"
+## 🌐 云端同步
 
-### 编辑任务
-1. 点击任务右侧的编辑图标
-2. 修改任务信息
-3. 点击"保存修改"
+使用 **Supabase** 实现实时数据同步：
+- ✅ 多设备数据同步
+- ✅ 实时更新
+- ✅ 离线缓存支持
 
-### 完成任务
-- 点击任务前的复选框
-- 或滑动任务向左
+---
 
-### 删除任务
-- 滑动任务向右
+## 📝 待办功能
 
-### 查看统计
-底部状态栏显示：总任务数、已完成数、待办数、完成率
-
-## 数据同步方案
-
-### 方法：文件同步（推荐）
-
-1. **导出数据**：
-   - 将数据导出为JSON文件
-   - 保存到云盘（OneDrive、Dropbox、百度网盘等）
-
-2. **同步文件**：
-   - 在其他设备上，将文件同步到应用数据目录
-
-3. **导入数据**：
-   - 在应用中导入JSON文件
-
-## 数据库结构
-
-### Task 表
-
-| 字段        | 类型    | 说明              |
-|------------|---------|------------------|
-| id         | INTEGER | 主键，自增         |
-| title      | TEXT    | 任务标题（必填）    |
-| description| TEXT    | 任务描述           |
-| is_completed| INTEGER | 完成状态（0/1）   |
-| priority   | INTEGER | 优先级（0-低，1-中，2-高） |
-| category   | INTEGER | 分类（0-4对应不同分类） |
-| due_date   | INTEGER | 截止日期（时间戳）  |
-| created_at | INTEGER | 创建时间（时间戳）  |
-| updated_at | INTEGER | 更新时间（时间戳）  |
-| user_id    | TEXT    | 用户ID（多人协作）   |
-
-## 开发计划
-
-### 第一阶段（已完成）✅
-- [x] 初始化Flutter项目
-- [x] 创建任务数据模型
-- [x] 实现本地数据库存储
-- [x] CRUD操作界面
-- [x] 基础UI和状态管理
-
-### 第二阶段（待实现）
-- [ ] 数据导入/导出UI
-- [ ] 搜索功能
-- [ ] 批量操作
-- [ ] 主题切换
-
-### 第三阶段（未来）
 - [ ] 任务提醒通知
-- [ ] 数据云同步
-- [ ] 多人协作功能
-- [ ] iOS版本发布
+- [ ] 支持任务附件
+- [ ] 情话语录功能
+- [ ] 纪念日倒计时
 
-## 版本信息
+---
 
-**版本**: 1.0.0
-**最后更新**: 2026-02-26
+## 📄 许可证
+
+MIT License
+
+---
+
+**Made with 💕 by 小雷 & 芬芬**
