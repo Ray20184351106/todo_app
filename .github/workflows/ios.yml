@@ -1,0 +1,79 @@
+name: Build iOS IPA
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:  # 允许手动触发
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.41.2'
+          channel: 'stable'
+          cache: true
+
+      - name: Install Flutter dependencies
+        run: flutter pub get
+
+      - name: Build iOS IPA (No Codesign)
+        run: |
+          flutter build ios --release --no-codesign
+
+      - name: Package IPA
+        run: |
+          # 创建 Payload 目录结构
+          mkdir -p Payload
+          # 复制构建好的 app 到 Payload
+          cp -r build/ios/iphoneos/Runner.app Payload/
+          # 打包成 IPA
+          zip -r FlutterTodoApp.ipa Payload
+          # 清理临时目录
+          rm -rf Payload
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: iOS-IPA-NoCodesign
+          path: FlutterTodoApp.ipa
+          retention-days: 30
+
+      - name: Get current date
+        id: date
+        run: echo "date=$(date +'%Y-%m-%d %H:%M')" >> $GITHUB_OUTPUT
+
+      - name: Build Summary
+        run: |
+          echo "## 📱 iOS IPA 构建完成" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**构建时间**: ${{ steps.date.outputs.date }}" >> $GITHUB_STEP_SUMMARY
+          echo "**提交**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📥 下载 IPA" >> $GITHUB_STEP_SUMMARY
+          echo "1. 进入 Actions 标签页" >> $GITHUB_STEP_SUMMARY
+          echo "2. 点击最新的构建任务" >> $GITHUB_STEP_SUMMARY
+          echo "3. 在 Artifacts 区域下载 \`iOS-IPA-NoCodesign\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### ⚠️ 重要提示" >> $GITHUB_STEP_SUMMARY
+          echo "此 IPA 未签名，需要使用以下工具安装:" >> $GITHUB_STEP_SUMMARY
+          echo "- **Sideloadly** (Windows 推荐)" >> $GITHUB_STEP_SUMMARY
+          echo "- **AltStore** (需要 Mac)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📋 安装步骤" >> $GITHUB_STEP_SUMMARY
+          echo "1. 下载 Sideloadly: https://sideloadly.io" >> $GITHUB_STEP_SUMMARY
+          echo "2. 用数据线连接 iPhone 到电脑" >> $GITHUB_STEP_SUMMARY
+          echo "3. 打开 Sideloadly，选择下载的 IPA 文件" >> $GITHUB_STEP_SUMMARY
+          echo "4. 输入你的 Apple ID 和密码（仅用于签名）" >> $GITHUB_STEP_SUMMARY
+          echo "5. 等待安装完成" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### ⏰ 有效期" >> $GITHUB_STEP_SUMMARY
+          echo "免费签名有效期 **7 天**，到期后重新安装即可。" >> $GITHUB_STEP_SUMMARY
